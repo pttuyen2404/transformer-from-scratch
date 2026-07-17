@@ -68,10 +68,3 @@ de_tokenizer = SimpleTokenizer("de")
 result = translate(model, "ein hund läuft im park .", de_vocab, en_vocab, de_tokenizer, cfg, device)
 print(result)
 ```
-
-## Ghi chú khi chuyển từ notebook
-
-- Bỏ `!pip install` → chuyển vào `requirements.txt`.
-- Bỏ code Colab-specific (không có mount Google Drive trong notebook gốc, chỉ có cài package).
-- Sửa 1 lỗi nhỏ trong notebook gốc: hàm `greedy_decode` gọi `tgt_vocab.get_itos()` (API của `torchtext`), nhưng class `Vocabulary` tự viết chỉ có dict `itos` — đã sửa lại thành `tgt_vocab.itos[idx]`.
-- Model và vocab (`stoi`/`itos`) được lưu chung vào checkpoint để `inference.py` chạy độc lập, không cần build lại vocab từ dataset mỗi lần.
