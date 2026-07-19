@@ -10,6 +10,7 @@ Chuyển từ Colab notebook sang Python project chuẩn.
 transformer-project/
 ├── src/
 │   ├── config.py       # tất cả hyperparameter
+│   ├── evaluate.py     # đánh giá model bằng BLEU score (entry point)
 │   ├── data.py         # tokenizer, vocabulary, dataset, dataloader
 │   ├── model.py        # kiến trúc Transformer (attention, encoder, decoder...)
 │   ├── train.py        # training loop (entry point)
@@ -68,3 +69,18 @@ de_tokenizer = SimpleTokenizer("de")
 result = translate(model, "ein hund läuft im park .", de_vocab, en_vocab, de_tokenizer, cfg, device)
 print(result)
 ```
+## Đánh giá model (BLEU)
+
+Sau khi đã có checkpoint, chạy để đánh giá BLEU score trên tập test:
+
+```bash
+python -m src.evaluate
+```
+
+Script này dùng thư viện [`sacrebleu`](https://github.com/mjpost/sacrebleu) (implementation chuẩn, hay được dùng để so sánh kết quả giữa các paper/lab với nhau) và sẽ:
+
+- Load checkpoint từ `checkpoints/transformer_de_en.pt`
+- Dịch toàn bộ câu tiếng Đức trong test set bằng model đã train (greedy )
+- Tính BLEU score bằng `sacrebleu.corpus_bleu(hypotheses, [references])` giữa bản dịch của model và câu tham chiếu tiếng Anh
+- In ra BLEU score tổng thể, kèm vài ví dụ so sánh câu dịch model vs câu tham chiếu để kiểm tra định tính
+
