@@ -11,38 +11,8 @@ from src.data import SimpleTokenizer, Vocabulary
 from src.model import Transformer
 
 
-def greedy_decode(model, src, tgt_vocab, cfg, device, max_len=50):
-    """Greedy decoding - generate từng token một."""
-    model.eval()
-    src = src.to(device)
-
-    src_mask = model.make_src_mask(src)
-    encoder_output = model.encode(src, src_mask)
-
-    tgt_indices = [cfg.bos_idx]
-
-    for _ in range(max_len):
-        tgt_tensor = torch.LongTensor(tgt_indices).unsqueeze(0).to(device)
-        tgt_mask = model.make_tgt_mask(tgt_tensor)
-
-        decoder_output = model.decode(tgt_tensor, encoder_output, src_mask, tgt_mask)
-        output = model.fc_out(decoder_output)
-
-        next_token = output.argmax(dim=-1)[:, -1].item()
-        tgt_indices.append(next_token)
-
-        if next_token == cfg.eos_idx:
-            break
-
-    # Note: dùng dict itos trực tiếp (bản gốc trong notebook gọi get_itos()
-    # vốn là API của torchtext, không tồn tại trong class Vocabulary tự viết ở đây)
-    tgt_tokens = [tgt_vocab.itos[idx] for idx in tgt_indices]
-    return " ".join(tgt_tokens[1:-1])  # bỏ BOS và EOS
-
-
 def translate(model, src_sentence, src_vocab, tgt_vocab, src_tokenizer, cfg, device, max_len=50):
-    model.eval()
-
+    """Dịch một câu mới."""
     tokens = src_tokenizer.tokenize(src_sentence)
     indices = [src_vocab.stoi.get(token, cfg.unk_idx) for token in tokens]
     indices = [cfg.bos_idx] + indices + [cfg.eos_idx]
@@ -115,6 +85,7 @@ def main():
 
     print("Testing translations:\n")
     for i, sentence in enumerate(test_sentences, 1):
+        model.eval()
         translation = translate(model, sentence, de_vocab, en_vocab, de_tokenizer, cfg, device)
         print(f"{i}. German: {sentence}")
         print(f"   English: {translation}\n")

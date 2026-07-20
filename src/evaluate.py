@@ -6,7 +6,7 @@ import sacrebleu
 import torch
 from src.config import Config
 from src.inference import load_model_for_inference,translate
-from data.data import load_data,SimpleTokenizer
+from src.data import load_data,SimpleTokenizer
 
 def evaluate_bleu(model, test_data, de_vocab, en_vocab, de_tokenizer, cfg, device):
     """
@@ -41,8 +41,6 @@ def main():
     de_tokenizer = SimpleTokenizer(language="de")
     bleu_score, hypotheses, references = evaluate_bleu(model, test_data, de_vocab, en_vocab, de_tokenizer, cfg, device)
     print(f"BLEU score: {bleu_score:.2f}")
-    print(f"Số câu test: {len(test_data)}\n")
-
     print("Một vài ví dụ:")
     for h, r in zip(hypotheses[:5], references[:5]):
         print(f"HYP: {h}")

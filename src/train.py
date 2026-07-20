@@ -12,8 +12,40 @@ from src.data import load_data, build_vocabularies, build_dataloaders
 from src.model import Transformer
 from src.utils import count_parameters, save_checkpoint
 
+class NoamScheduler:
+    """
+    Learning rate scheduler theo công thức gốc paper "Attention Is All You Need".
+    lr tăng tuyến tính trong warmup_steps bước đầu, sau đó giảm theo inverse sqrt(step).
+    """
+    def __init__(self, optimizer, d_model, warmup_steps):
+        self.optimizer = optimizer
+        self.d_model = d_model
+        self.warmup_steps = warmup_steps
+        self.step_num = 0
+        self._last_lr = 0
 
-def train_epoch(model, dataloader, optimizer, criterion, device, grad_clip):
+    def step(self):
+        self.step_num += 1
+        lr = self._compute_lr()
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+        self._last_lr = lr
+        self.optimizer.step()
+
+    def _compute_lr(self):
+        step = self.step_num
+        return (self.d_model ** -0.5) * min(
+            step ** -0.5,
+            step * (self.warmup_steps ** -1.5)
+        )
+
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+
+    def get_last_lr(self):
+        return self._last_lr
+
+def train_epoch(model, dataloader, scheduler, criterion, device, grad_clip):
     model.train()
     losses = 0
 
@@ -27,10 +59,10 @@ def train_epoch(model, dataloader, optimizer, criterion, device, grad_clip):
 
         loss = criterion(logits.reshape(-1, logits.shape[-1]), tgt_output.reshape(-1))
 
-        optimizer.zero_grad()
+        scheduler.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        optimizer.step()
+        scheduler.step()
 
         losses += loss.item()
 
@@ -61,12 +93,14 @@ def main():
     print(f"Using device: {device}")
 
     # --- Data ---
-    train_data, val_data, test_data = load_data(cfg)
+    train_data, val_data, _ = load_data(cfg)
     de_vocab, en_vocab, de_tokenizer, en_tokenizer = build_vocabularies(train_data, cfg)
-    train_loader, val_loader = build_dataloaders(
-        train_data, val_data, de_vocab, en_vocab, de_tokenizer, en_tokenizer, cfg
+    train_loader = build_dataloaders(
+        train_data, de_vocab, en_vocab, de_tokenizer, en_tokenizer, cfg, shuffle = True
     )
-
+    val_loader = build_dataloaders(
+        val_data, de_vocab, en_vocab, de_tokenizer, en_tokenizer, cfg, shuffle = False
+    )
     # --- Model ---
     model = Transformer(
         src_vocab_size=len(de_vocab),
@@ -83,12 +117,12 @@ def main():
 
     criterion = nn.CrossEntropyLoss(ignore_index=cfg.pad_idx)
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, betas=cfg.betas, eps=cfg.eps)
-
+    scheduler = NoamScheduler(optimizer, d_model=cfg.d_model, warmup_steps=cfg.warmup_steps)
     # --- Training loop ---
     print("Starting training...")
     for epoch in range(1, cfg.epochs + 1):
         start_time = time.time()
-        train_loss = train_epoch(model, train_loader, optimizer, criterion, device, cfg.grad_clip)
+        train_loss = train_epoch(model, train_loader, scheduler, criterion, device, cfg.grad_clip)
         val_loss = evaluate(model, val_loader, criterion, device)
         end_time = time.time()
 
@@ -98,15 +132,13 @@ def main():
             f"Val Loss: {val_loss:.3f} | "
             f"Time: {end_time - start_time:.1f}s"
         )
-
-    print("\nTraining complete!")
-
     # Lưu checkpoint kèm vocab để inference.py dùng lại được
     save_checkpoint(
         model,
         optimizer,
         cfg.epochs,
         cfg,
+        scheduler.warmup_steps,
         extra={
             "de_stoi": de_vocab.stoi,
             "de_itos": de_vocab.itos,
@@ -114,6 +146,7 @@ def main():
             "en_itos": en_vocab.itos,
         },
     )
+    print("\nTraining complete!")
 
 
 if __name__ == "__main__":

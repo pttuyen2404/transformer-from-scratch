@@ -7,7 +7,7 @@ def count_parameters(model) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def save_checkpoint(model, optimizer, epoch, cfg, extra=None):
+def save_checkpoint(model, optimizer, epoch, cfg, warmup_steps, extra=None):
     """Lưu checkpoint model + optimizer + vocab size, để load lại dùng inference sau này."""
     os.makedirs(cfg.checkpoint_dir, exist_ok=True)
     path = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
@@ -16,6 +16,7 @@ def save_checkpoint(model, optimizer, epoch, cfg, extra=None):
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
+        "warmup_steps": warmup_steps,
     }
     if extra:
         state.update(extra)
